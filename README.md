@@ -1,140 +1,113 @@
 # Confectionery Orders API
 
-API REST para cadastro de clientes e encomendas de uma confeitaria.
+API REST para organizar clientes e encomendas de uma confeitaria. A aplicação permite cadastrar clientes e acompanhar encomendas relacionadas a eles, com dados persistidos em PostgreSQL (incluindo projetos Supabase).
+
+## Identificação
+
+- **Estudante:** Carlos Bueno Barroso de Oliveira
 
 ## Tecnologias
 
-- Node.js
+- Node.js 22+
 - TypeScript
 - Express
-- PostgreSQL
-- Supabase
-- Zod
+- PostgreSQL / Supabase
+- `pg` para acesso ao banco
+- Zod para validação
+- Git
 
-## Entidades
+## Entidades e relacionamento
 
-```text
-Customer 1 ---- N Order
-customers.id <- orders.customer_id
-```
+| Entidade | Atributos principais |
+|---|---|
+| Customer (cliente) | `id` (UUID), `name`, `phone`, `email`, `created_at`, `updated_at` |
+| Order (encomenda) | `id` (UUID), `customer_id`, `title`, `description`, `occasion`, `delivery_date`, `total_price`, `status`, `created_at`, `updated_at` |
 
-Um cliente pode ter várias encomendas. Cada encomenda pertence a um cliente pelo campo `customer_id`.
+Um cliente pode ter várias encomendas. Cada encomenda pertence a um cliente por meio da chave estrangeira `orders.customer_id`, que referencia `customers.id`. A exclusão de um cliente com encomendas é impedida para preservar a integridade dos dados.
 
-## Estrutura
+## Estrutura do projeto
 
 ```text
 src/
-├── config/
-├── controllers/
-├── errors/
-├── middlewares/
-├── models/
-├── repositories/
-├── routes/
-├── validators/
-├── app.ts
-└── server.ts
+├── config/        # Conexão com PostgreSQL
+├── controllers/   # Tratamento das requisições e respostas
+├── errors/        # Erros da aplicação
+├── middlewares/   # Tratamento assíncrono e erros HTTP
+├── models/        # Tipos e DTOs das entidades
+├── repositories/  # Consultas e persistência no banco
+├── routes/        # Rotas HTTP
+├── validators/    # Validação dos dados recebidos
+├── app.ts         # Configuração do Express
+└── server.ts      # Inicialização e encerramento do servidor
 
 database/
-tests/
+└── create_tables.sql  # Tabelas, chaves, restrições e gatilhos
+tests/                 # Testes automatizados da API
 ```
 
-- `routes`: endpoints da API
-- `controllers`: recebem e tratam as requisições
-- `repositories`: acesso ao banco
-- `models`: tipos de Customer e Order
-- `validators`: validação dos dados
-- `config/database.ts`: conexão com PostgreSQL
+## Configuração e execução
 
-## Como rodar
+Pré-requisitos: Node.js 22+, npm e um banco PostgreSQL ou projeto Supabase.
 
-Pré-requisitos:
-
-- Node.js 22+
-- npm
-- PostgreSQL ou projeto no Supabase
-
-Clone o repositório:
-
-```powershell
-git clone https://github.com/hhenriquehhenneberg-crypto/confectionery-orders-api.git
+```bash
+git clone <URL_DO_SEU_REPOSITORIO>
 cd confectionery-orders-api
 npm install
 ```
 
-Crie o arquivo `.env` a partir do exemplo:
+Copie `.env.example` para `.env` e preencha a URL de conexão do seu banco:
 
-```powershell
-Copy-Item .env.example .env
+```bash
+cp .env.example .env
 ```
 
-Preencha a conexão com o banco:
+No Windows PowerShell, use `Copy-Item .env.example .env`. No Supabase, execute o conteúdo de `database/create_tables.sql` pelo SQL Editor. Depois:
 
-```env
-PORT=3000
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=verify-full
-```
-
-No Supabase, execute o arquivo:
-
-```text
-database/create_tables.sql
-```
-
-Depois inicie a API:
-
-```powershell
+```bash
 npm run dev
 ```
 
-Por padrão ela fica em:
+A API inicia em `http://localhost:3000`. Para compilar e iniciar a versão compilada, use `npm run build` e `npm start`.
 
-```text
-http://localhost:3000
-```
+## Variáveis de ambiente
 
-Para verificar:
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `PORT` | Não | Porta HTTP; padrão `3000` |
+| `DATABASE_URL` | Sim | URL de conexão PostgreSQL/Supabase |
+| `PGSSLROOTCERT` | Não | Caminho para certificado raiz, quando exigido pela configuração TLS |
 
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3000"
-```
+`.env.example` contém apenas valores ilustrativos. O arquivo `.env` com credenciais reais está excluído pelo `.gitignore` e não deve ser enviado ao repositório.
 
-## API online
+## Banco de dados
 
-A versão publicada está em:
-
-https://confectionery-orders-api.onrender.com
-
-Exemplo de consulta:
-
-```powershell
-Invoke-RestMethod -Uri "https://confectionery-orders-api.onrender.com/customers"
-```
+O script `database/create_tables.sql` cria `customers` e `orders` com UUID como chave primária, valores obrigatórios e restrições de integridade. A tabela `orders` referencia `customers` por `customer_id`; status, ocasião e preço também são limitados por restrições. Gatilhos atualizam `updated_at` automaticamente. Row Level Security (RLS) fica habilitado nas duas tabelas; configure políticas no Supabase conforme a forma de acesso adotada.
 
 ## Endpoints
 
-### Customers
+Todas as respostas e corpos de requisição usam JSON, exceto exclusões bem-sucedidas, que retornam `204` sem corpo. IDs de rota devem ser UUIDs.
 
-| Método | Endpoint | Descrição |
+| Método | Endpoint | Finalidade |
 |---|---|---|
+| GET | `/` | Informações básicas da API |
+| GET | `/health` | Verifica disponibilidade HTTP |
 | GET | `/customers` | Lista clientes |
-| GET | `/customers/:id` | Busca um cliente |
-| POST | `/customers` | Cria um cliente |
-| PUT | `/customers/:id` | Atualiza um cliente |
-| DELETE | `/customers/:id` | Exclui um cliente |
-
-### Orders
-
-| Método | Endpoint | Descrição |
-|---|---|---|
+| GET | `/customers/:id` | Consulta cliente por UUID |
+| POST | `/customers` | Cria cliente |
+| PUT | `/customers/:id` | Atualiza um ou mais campos do cliente |
+| DELETE | `/customers/:id` | Exclui cliente sem encomendas |
+| GET | `/customers/:id/orders` | Lista encomendas do cliente |
 | GET | `/orders` | Lista encomendas |
-| GET | `/orders/:id` | Busca uma encomenda |
-| POST | `/orders` | Cria uma encomenda |
-| PUT | `/orders/:id` | Atualiza uma encomenda |
-| DELETE | `/orders/:id` | Exclui uma encomenda |
-| GET | `/customers/:id/orders` | Lista encomendas de um cliente |
+| GET | `/orders/:id` | Consulta encomenda por UUID |
+| POST | `/orders` | Cria encomenda vinculada a cliente existente |
+| PUT | `/orders/:id` | Atualiza um ou mais campos da encomenda |
+| DELETE | `/orders/:id` | Exclui encomenda |
 
-## Exemplo de cliente
+Erros de validação retornam `400`, registros inexistentes retornam `404`, tentativa de excluir cliente com encomendas retorna `409`, criações retornam `201` e exclusões concluídas retornam `204`.
+
+## Exemplos de requisição
+
+Criar cliente (`POST /customers`):
 
 ```json
 {
@@ -144,12 +117,12 @@ Invoke-RestMethod -Uri "https://confectionery-orders-api.onrender.com/customers"
 }
 ```
 
-## Exemplo de encomenda
+Criar encomenda (`POST /orders`):
 
 ```json
 {
   "customer_id": "UUID_DO_CLIENTE",
-  "title": "Bolo de aniversario",
+  "title": "Bolo de aniversário",
   "description": "Bolo de chocolate para 30 pessoas",
   "occasion": "birthday",
   "delivery_date": "2026-10-25T15:00:00-03:00",
@@ -158,33 +131,25 @@ Invoke-RestMethod -Uri "https://confectionery-orders-api.onrender.com/customers"
 }
 ```
 
-## Status disponíveis
+Atualizar encomenda (`PUT /orders/UUID_DA_ENCOMENDA`):
 
-```text
-pending
-confirmed
-in_production
-ready
-delivered
-cancelled
+```json
+{
+  "status": "confirmed",
+  "total_price": 300
+}
 ```
 
-## Testes
+Campos opcionais de criação incluem `email`, `description`, `occasion` e `status`. Em atualizações, envie pelo menos um campo permitido. Datas devem estar no formato ISO 8601 com fuso horário; preço deve ser número não negativo com até duas casas decimais.
 
-```powershell
-npm run typecheck
-npm run build
-npm test
-```
+Valores aceitos para `occasion`: `birthday`, `wedding`, `party`, `corporate`, `other`. Valores aceitos para `status`: `pending`, `confirmed`, `in_production`, `ready`, `delivered`, `cancelled`.
 
-## Scripts
+## Comandos disponíveis
 
 ```text
 npm run dev       inicia em modo de desenvolvimento
 npm run build     compila o TypeScript
-npm start         executa a versão compilada
+npm start         inicia a versão compilada
 npm run typecheck verifica os tipos
-npm test          executa os testes
+npm test          compila e executa os testes automatizados
 ```
-
-O arquivo `.env` não é versionado.
