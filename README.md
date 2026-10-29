@@ -50,7 +50,7 @@ tests/                 # Testes automatizados da API
 Pré-requisitos: Node.js 22+, npm e um banco PostgreSQL ou projeto Supabase.
 
 ```bash
-git clone <URL_DO_SEU_REPOSITORIO>
+git clone https://github.com/cbboliveira07-beep/confectionery-orders-api.git
 cd confectionery-orders-api
 npm install
 ```
