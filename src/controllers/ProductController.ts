@@ -2,14 +2,15 @@ import { Request, Response } from "express";
 import { AppError } from "../errors/AppError";
 import { CategoryRepository } from "../repositories/CategoryRepository";
 import { ProductRepository } from "../repositories/ProductRepository";
-import { productSchema, productUpdateSchema, uuidSchema } from "../validators/schemas";
+import { keywordSchema, productSchema, productUpdateSchema, uuidSchema } from "../validators/schemas";
 
 export class ProductController {
   private readonly repository = new ProductRepository();
   private readonly categories = new CategoryRepository();
 
   list = async (_req: Request, res: Response): Promise<void> => {
-    res.json(await this.repository.findAll());
+    const search = keywordSchema.parse(_req.query.search);
+    res.json(await this.repository.findAll(search));
   };
 
   get = async (req: Request, res: Response): Promise<void> => {

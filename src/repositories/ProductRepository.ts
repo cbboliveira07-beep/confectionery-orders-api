@@ -16,10 +16,15 @@ function rethrow(error: unknown): never {
 }
 
 export class ProductRepository {
-  async findAll(): Promise<Product[]> {
-    const records = (await database.query<ProductRecord>(
-      `select ${fields} from products order by name, id`,
-    )).rows;
+  async findAll(search?: string): Promise<Product[]> {
+    const result = search
+      ? await database.query<ProductRecord>(
+        `select ${fields} from products
+         where name ilike $1 or coalesce(description, '') ilike $1 order by name, id`,
+        [`%${search}%`],
+      )
+      : await database.query<ProductRecord>(`select ${fields} from products order by name, id`);
+    const records = result.rows;
     return records.map(toProduct);
   }
 

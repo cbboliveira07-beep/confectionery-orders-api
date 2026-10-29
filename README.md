@@ -103,12 +103,14 @@ Todas as respostas e corpos de requisição usam JSON, exceto exclusões bem-suc
 | DELETE | `/customers/:id` | Exclui cliente sem encomendas |
 | GET | `/customers/:id/orders` | Lista encomendas do cliente |
 | GET | `/categories` | Lista categorias |
+| GET | `/categories?search=bolo` | Pesquisa categorias por nome ou descrição |
 | GET | `/categories/:id` | Consulta categoria por UUID |
 | POST | `/categories` | Cria categoria |
 | PUT | `/categories/:id` | Atualiza categoria |
 | DELETE | `/categories/:id` | Exclui categoria sem produtos |
 | GET | `/categories/:id/products` | Lista produtos da categoria |
 | GET | `/products` | Lista produtos |
+| GET | `/products?search=chocolate` | Pesquisa produtos por nome ou descrição |
 | GET | `/products/:id` | Consulta produto por UUID |
 | POST | `/products` | Cria produto vinculado a uma categoria |
 | PUT | `/products/:id` | Atualiza produto |
@@ -131,6 +133,8 @@ Criar categoria (`POST /categories`):
   "description": "Bolos para festas e encomendas personalizadas"
 }
 ```
+
+Pesquisas não diferenciam maiúsculas de minúsculas e retornam uma lista vazia quando não há correspondências. O parâmetro `search` aceita até 100 caracteres.
 
 Criar produto (`POST /products`):
 

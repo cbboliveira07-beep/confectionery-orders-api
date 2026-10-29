@@ -7,10 +7,14 @@ const toCategory = (record: CategoryRecord): Category => new Category(
 );
 
 export class CategoryRepository {
-  async findAll(): Promise<Category[]> {
-    const records = (await database.query<CategoryRecord>(
-      "select * from categories order by name, id",
-    )).rows;
+  async findAll(search?: string): Promise<Category[]> {
+    const result = search
+      ? await database.query<CategoryRecord>(
+        "select * from categories where name ilike $1 or coalesce(description, '') ilike $1 order by name, id",
+        [`%${search}%`],
+      )
+      : await database.query<CategoryRecord>("select * from categories order by name, id");
+    const records = result.rows;
     return records.map(toCategory);
   }
 

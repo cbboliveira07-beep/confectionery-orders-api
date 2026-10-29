@@ -116,6 +116,8 @@ test('CRUD de categorias e produtos, vínculo por UUID e exclusão protegida', a
   assert.match(category.body.id, /^[0-9a-f-]{36}$/);
   assert.equal(category.location, `/categories/${category.body.id}`);
   assert.equal((await request('GET', `/categories/${category.body.id}`)).body.name, 'Bolos');
+  assert.equal((await request('GET', '/categories?search=bolo')).body.length, 1);
+  assert.deepEqual((await request('GET', '/categories?search=nao-encontrada')).body, []);
   assert.equal((await request('PUT', `/categories/${category.body.id}`, { name: 'Bolos especiais' })).body.name, 'Bolos especiais');
 
   const product = await request('POST', '/products', {
@@ -132,6 +134,9 @@ test('CRUD de categorias e produtos, vínculo por UUID e exclusão protegida', a
   assert.equal((await request('GET', `/products/${product.body.id}`)).body.name, 'Bolo de chocolate');
   assert.equal((await request('GET', `/categories/${category.body.id}/products`)).body.length, 1);
   assert.equal((await request('GET', '/products')).body.length, 1);
+  assert.equal((await request('GET', '/products?search=CHOCOLATE')).body.length, 1);
+  assert.deepEqual((await request('GET', '/products?search=nao-encontrado')).body, []);
+  assert.equal((await request('GET', '/products?search=')).status, 400);
 
   assert.equal((await request('DELETE', `/categories/${category.body.id}`)).status, 409);
   const changed = await request('PUT', `/products/${product.body.id}`, { price: 135, description: null });

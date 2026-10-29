@@ -2,6 +2,7 @@ import { z } from "zod";
 import { occasions, statuses } from "../models/Order";
 
 export const uuidSchema = z.string().uuid("UUID inválido.");
+export const keywordSchema = z.string().trim().min(1, "A busca não pode ficar vazia.").max(100).optional();
 const text = (max: number) => z.string().trim().min(1, "Campo não pode ficar vazio.").max(max);
 export const customerSchema = z.object({
   name: text(120),
