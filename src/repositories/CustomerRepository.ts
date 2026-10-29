@@ -1,28 +1,36 @@
 import { database } from "../config/database";
-import { Customer, CreateCustomerDTO, UpdateCustomerDTO } from "../models/Customer";
+import { Customer, CustomerRecord, CreateCustomerDTO, UpdateCustomerDTO } from "../models/Customer";
 import { AppError } from "../errors/AppError";
+
+const toCustomer = (record: CustomerRecord): Customer => new Customer(
+  record.id, record.name, record.phone, record.email, record.created_at, record.updated_at,
+);
 
 export class CustomerRepository {
   async findAll(): Promise<Customer[]> {
-    return (await database.query<Customer>("select * from customers order by created_at, id")).rows;
+    const records = (await database.query<CustomerRecord>("select * from customers order by created_at, id")).rows;
+    return records.map(toCustomer);
   }
   async findById(id: string): Promise<Customer | undefined> {
-    return (await database.query<Customer>("select * from customers where id = $1", [id])).rows[0];
+    const record = (await database.query<CustomerRecord>("select * from customers where id = $1", [id])).rows[0];
+    return record ? toCustomer(record) : undefined;
   }
   async create(data: CreateCustomerDTO): Promise<Customer> {
-    return (await database.query<Customer>(
+    const record = (await database.query<CustomerRecord>(
       "insert into customers (name, phone, email) values ($1, $2, $3) returning *",
       [data.name, data.phone, data.email ?? null],
     )).rows[0];
+    return toCustomer(record);
   }
   async update(id: string, data: UpdateCustomerDTO): Promise<Customer | undefined> {
     // Campos permitidos na atualização
     const keys = (["name", "phone", "email"] as const).filter(key => data[key] !== undefined);
     if (!keys.length) throw new AppError(400, "Informe ao menos um campo.");
-    return (await database.query<Customer>(
+    const record = (await database.query<CustomerRecord>(
       `update customers set ${keys.map((key, i) => `${key} = $${i + 2}`).join(", ")} where id = $1 returning *`,
       [id, ...keys.map(key => data[key])],
     )).rows[0];
+    return record ? toCustomer(record) : undefined;
   }
   async hasOrders(id: string): Promise<boolean> {
     const result = await database.query<{ exists: boolean }>("select exists(select 1 from orders where customer_id = $1)", [id]);

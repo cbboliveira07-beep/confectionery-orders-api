@@ -33,7 +33,7 @@ src/
 ├── controllers/   # Tratamento das requisições e respostas
 ├── errors/        # Erros da aplicação
 ├── middlewares/   # Tratamento assíncrono e erros HTTP
-├── models/        # Tipos e DTOs das entidades
+├── models/        # Classes das entidades e DTOs
 ├── repositories/  # Consultas e persistência no banco
 ├── routes/        # Rotas HTTP
 ├── validators/    # Validação dos dados recebidos
