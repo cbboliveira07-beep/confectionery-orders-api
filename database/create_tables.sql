@@ -28,6 +28,30 @@ create table public.orders (
     constraint chk_orders_occasion check (occasion is null or occasion in ('birthday','wedding','party','corporate','other'))
 );
 create index idx_orders_customer_id on public.orders(customer_id);
+
+-- Categorias do catálogo
+create table public.categories (
+    id uuid primary key default gen_random_uuid(),
+    name varchar(100) not null check (length(btrim(name)) > 0),
+    description varchar(500),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+-- Produtos disponíveis para encomenda
+create table public.products (
+    id uuid primary key default gen_random_uuid(),
+    category_id uuid not null,
+    name varchar(150) not null check (length(btrim(name)) > 0),
+    description varchar(500),
+    price numeric(10,2) not null check (price >= 0),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    constraint fk_products_category foreign key (category_id)
+        references public.categories(id) on delete restrict
+);
+create index idx_products_category_id on public.products(category_id);
+
 -- Atualiza updated_at
 create function public.set_confectionery_updated_at() returns trigger
 language plpgsql set search_path = '' as $$
@@ -40,6 +64,12 @@ create trigger customers_updated_at before update on public.customers
 for each row execute function public.set_confectionery_updated_at();
 create trigger orders_updated_at before update on public.orders
 for each row execute function public.set_confectionery_updated_at();
+create trigger categories_updated_at before update on public.categories
+for each row execute function public.set_confectionery_updated_at();
+create trigger products_updated_at before update on public.products
+for each row execute function public.set_confectionery_updated_at();
 alter table public.customers enable row level security;
 alter table public.orders enable row level security;
+alter table public.categories enable row level security;
+alter table public.products enable row level security;
 commit;

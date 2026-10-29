@@ -40,6 +40,8 @@ test('CRUD completo, relacionamento 1:N, preço JSON, status default e timestamp
   assert.equal((await request('GET', '/health')).status, 200);
   assert.deepEqual((await request('GET', '/customers')).body, []);
   assert.deepEqual((await request('GET', '/orders')).body, []);
+  assert.deepEqual((await request('GET', '/categories')).body, []);
+  assert.deepEqual((await request('GET', '/products')).body, []);
   const created = await request('POST', '/customers', customer);
   assert.equal(created.status, 201);
   const c = created.body;
@@ -86,18 +88,72 @@ test('CRUD completo, relacionamento 1:N, preço JSON, status default e timestamp
 });
 
 test('UUID inválido e todos os caminhos de registro inexistente', async () => {
-  for (const path of ['/customers', '/orders']) {
+  const updateBodies = {
+    '/customers': { name: 'Nome' },
+    '/orders': { status: 'ready' },
+    '/categories': { name: 'Nova categoria' },
+    '/products': { price: 10 },
+  };
+  for (const path of Object.keys(updateBodies)) {
     for (const method of ['GET', 'PUT', 'DELETE']) {
-      const body = method === 'PUT' ? (path === '/customers' ? { name: 'Nome' } : { status: 'ready' }) : undefined;
+      const body = method === 'PUT' ? updateBodies[path] : undefined;
       assert.equal((await request(method, path + '/invalido', body)).status, 400);
       assert.equal((await request(method, path + '/' + randomUUID(), body)).status, 404);
     }
   }
   assert.equal((await request('GET', '/customers/invalido/orders')).status, 400);
   assert.equal((await request('GET', `/customers/${randomUUID()}/orders`)).status, 404);
+  assert.equal((await request('GET', '/categories/invalido/products')).status, 400);
+  assert.equal((await request('GET', `/categories/${randomUUID()}/products`)).status, 404);
   assert.equal((await request('POST', '/orders', order(randomUUID()))).status, 404);
-  assert.equal((await request('GET', '/categories')).status, 404);
-  assert.equal((await request('GET', '/products')).status, 404);
+});
+
+test('CRUD de categorias e produtos, vínculo por UUID e exclusão protegida', async () => {
+  const category = await request('POST', '/categories', {
+    name: 'Bolos', description: 'Bolos para festas e encomendas',
+  });
+  assert.equal(category.status, 201);
+  assert.match(category.body.id, /^[0-9a-f-]{36}$/);
+  assert.equal(category.location, `/categories/${category.body.id}`);
+  assert.equal((await request('GET', `/categories/${category.body.id}`)).body.name, 'Bolos');
+  assert.equal((await request('PUT', `/categories/${category.body.id}`, { name: 'Bolos especiais' })).body.name, 'Bolos especiais');
+
+  const product = await request('POST', '/products', {
+    category_id: category.body.id,
+    name: 'Bolo de chocolate',
+    description: 'Serve 20 pessoas',
+    price: 120,
+  });
+  assert.equal(product.status, 201);
+  assert.match(product.body.id, /^[0-9a-f-]{36}$/);
+  assert.equal(product.location, `/products/${product.body.id}`);
+  assert.equal(product.body.category_id, category.body.id);
+  assert.equal(product.body.price, 120);
+  assert.equal((await request('GET', `/products/${product.body.id}`)).body.name, 'Bolo de chocolate');
+  assert.equal((await request('GET', `/categories/${category.body.id}/products`)).body.length, 1);
+  assert.equal((await request('GET', '/products')).body.length, 1);
+
+  assert.equal((await request('DELETE', `/categories/${category.body.id}`)).status, 409);
+  const changed = await request('PUT', `/products/${product.body.id}`, { price: 135, description: null });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.price, 135);
+  assert.equal(changed.body.description, null);
+  assert.equal((await request('PUT', `/products/${product.body.id}`, { category_id: randomUUID() })).status, 404);
+  assert.equal((await request('POST', '/products', {
+    category_id: randomUUID(), name: 'Produto inválido', price: 1,
+  })).status, 404);
+  assert.equal((await request('POST', '/categories', { name: ' ' })).status, 400);
+  assert.equal((await request('POST', '/products', {
+    category_id: category.body.id, name: 'Bolo', price: -1,
+  })).status, 400);
+  assert.equal((await request('POST', '/products', {
+    category_id: category.body.id, name: 'Bolo', price: 1.001,
+  })).status, 400);
+
+  assert.equal((await request('DELETE', `/products/${product.body.id}`)).status, 204);
+  assert.equal((await request('DELETE', `/categories/${category.body.id}`)).status, 204);
+  assert.equal((await request('GET', `/products/${product.body.id}`)).status, 404);
+  assert.equal((await request('GET', `/categories/${category.body.id}`)).status, 404);
 });
 
 test('validações recusam campos ausentes, vazios, inválidos e desconhecidos', async () => {
@@ -139,8 +195,17 @@ test('FK, CHECK, defaults e trigger são executados pelo PostgreSQL', async () =
   await assert.rejects(new CustomerRepository().delete(c.id), { statusCode: 409 });
   await assert.rejects(new OrderRepository().create(order(randomUUID())), { statusCode: 404 });
   await assert.rejects(new OrderRepository().update(o.id, { customer_id: randomUUID() }), { statusCode: 404 });
-  const rls = await db.query("select relname, relrowsecurity from pg_class where relname in ('customers','orders')");
+  const category = (await db.query("insert into categories (name) values ('Bolos') returning *")).rows[0];
+  const productSql = "insert into products (category_id, name, price) values ($1, 'Bolo', $2) returning *";
+  await assert.rejects(db.query(productSql, [randomUUID(), 10]), { code: '23503' });
+  await assert.rejects(db.query(productSql, [category.id, -1]), { code: '23514' });
+  const product = (await db.query(productSql, [category.id, 10])).rows[0];
+  await assert.rejects(db.query('delete from categories where id=$1', [category.id]), { code: '23503' });
+  const rls = await db.query("select relname, relrowsecurity from pg_class where relname in ('customers','orders','categories','products')");
+  assert.equal(rls.rows.length, 4);
   assert.ok(rls.rows.every(row => row.relrowsecurity));
+  await db.query('delete from products where id=$1', [product.id]);
+  await db.query('delete from categories where id=$1', [category.id]);
   await db.query('delete from orders where id=$1', [o.id]);
   await db.query('delete from customers where id=$1', [c.id]);
 });

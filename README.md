@@ -22,8 +22,12 @@ API REST para organizar clientes e encomendas de uma confeitaria. A aplicação 
 |---|---|
 | Customer (cliente) | `id` (UUID), `name`, `phone`, `email`, `created_at`, `updated_at` |
 | Order (encomenda) | `id` (UUID), `customer_id`, `title`, `description`, `occasion`, `delivery_date`, `total_price`, `status`, `created_at`, `updated_at` |
+| Category (categoria) | `id` (UUID), `name`, `description`, `created_at`, `updated_at` |
+| Product (produto) | `id` (UUID), `category_id`, `name`, `description`, `price`, `created_at`, `updated_at` |
 
 Um cliente pode ter várias encomendas. Cada encomenda pertence a um cliente por meio da chave estrangeira `orders.customer_id`, que referencia `customers.id`. A exclusão de um cliente com encomendas é impedida para preservar a integridade dos dados.
+
+Cada produto pertence a uma categoria por meio de `products.category_id`, que referencia `categories.id`. A exclusão de uma categoria que possui produtos é impedida.
 
 ## Estrutura do projeto
 
@@ -41,7 +45,8 @@ src/
 └── server.ts      # Inicialização e encerramento do servidor
 
 database/
-└── create_tables.sql  # Tabelas, chaves, restrições e gatilhos
+├── create_tables.sql  # Esquema completo para uma instalação nova
+└── migrations/        # Migrações para bancos já existentes
 tests/                 # Testes automatizados da API
 ```
 
@@ -61,7 +66,7 @@ Copie `.env.example` para `.env` e preencha a URL de conexão do seu banco:
 cp .env.example .env
 ```
 
-No Windows PowerShell, use `Copy-Item .env.example .env`. No Supabase, execute o conteúdo de `database/create_tables.sql` pelo SQL Editor. Depois:
+No Windows PowerShell, use `Copy-Item .env.example .env`. No Supabase, execute `database/create_tables.sql` pelo SQL Editor para um banco novo. Se o banco já tiver `customers` e `orders`, execute `database/migrations/002_categories_products.sql` para adicionar categorias e produtos. Depois:
 
 ```bash
 npm run dev
@@ -81,7 +86,7 @@ A API inicia em `http://localhost:3000`. Para compilar e iniciar a versão compi
 
 ## Banco de dados
 
-O script `database/create_tables.sql` cria `customers` e `orders` com UUID como chave primária, valores obrigatórios e restrições de integridade. A tabela `orders` referencia `customers` por `customer_id`; status, ocasião e preço também são limitados por restrições. Gatilhos atualizam `updated_at` automaticamente. Row Level Security (RLS) fica habilitado nas duas tabelas; configure políticas no Supabase conforme a forma de acesso adotada.
+O esquema cria `customers`, `orders`, `categories` e `products` com UUID como chave primária e restrições de integridade. `orders.customer_id` referencia `customers.id`; `products.category_id` referencia `categories.id`. Status, ocasião e preços têm restrições. Gatilhos atualizam `updated_at` automaticamente. Row Level Security (RLS) fica habilitado nas tabelas; configure políticas no Supabase conforme a forma de acesso adotada.
 
 ## Endpoints
 
@@ -97,15 +102,55 @@ Todas as respostas e corpos de requisição usam JSON, exceto exclusões bem-suc
 | PUT | `/customers/:id` | Atualiza um ou mais campos do cliente |
 | DELETE | `/customers/:id` | Exclui cliente sem encomendas |
 | GET | `/customers/:id/orders` | Lista encomendas do cliente |
+| GET | `/categories` | Lista categorias |
+| GET | `/categories/:id` | Consulta categoria por UUID |
+| POST | `/categories` | Cria categoria |
+| PUT | `/categories/:id` | Atualiza categoria |
+| DELETE | `/categories/:id` | Exclui categoria sem produtos |
+| GET | `/categories/:id/products` | Lista produtos da categoria |
+| GET | `/products` | Lista produtos |
+| GET | `/products/:id` | Consulta produto por UUID |
+| POST | `/products` | Cria produto vinculado a uma categoria |
+| PUT | `/products/:id` | Atualiza produto |
+| DELETE | `/products/:id` | Exclui produto |
 | GET | `/orders` | Lista encomendas |
 | GET | `/orders/:id` | Consulta encomenda por UUID |
 | POST | `/orders` | Cria encomenda vinculada a cliente existente |
 | PUT | `/orders/:id` | Atualiza um ou mais campos da encomenda |
 | DELETE | `/orders/:id` | Exclui encomenda |
 
-Erros de validação retornam `400`, registros inexistentes retornam `404`, tentativa de excluir cliente com encomendas retorna `409`, criações retornam `201` e exclusões concluídas retornam `204`.
+Erros de validação retornam `400`, registros inexistentes retornam `404`, tentativas de excluir cliente com encomendas ou categoria com produtos retornam `409`, criações retornam `201` e exclusões concluídas retornam `204`.
 
 ## Exemplos de requisição
+
+Criar categoria (`POST /categories`):
+
+```json
+{
+  "name": "Bolos",
+  "description": "Bolos para festas e encomendas personalizadas"
+}
+```
+
+Criar produto (`POST /products`):
+
+```json
+{
+  "category_id": "UUID_DA_CATEGORIA",
+  "name": "Bolo de chocolate",
+  "description": "Bolo de chocolate para 20 pessoas",
+  "price": 120.00
+}
+```
+
+Atualizar produto (`PUT /products/UUID_DO_PRODUTO`):
+
+```json
+{
+  "price": 135.00,
+  "description": "Bolo de chocolate para 25 pessoas"
+}
+```
 
 Criar cliente (`POST /customers`):
 
